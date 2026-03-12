@@ -55,9 +55,7 @@ install.packages(c(
 | Sensitivity analyses    | `results/sensitivity_results.csv` |
 | Table 1                 | `tables/table1.csv`               |
 | All figures (10 PNGs)   | `figures/`                        |
-| Final report (Markdown) | `report/final_report.md`          |
-| Final report (Rmd)      | `report/final_report.Rmd`         |
-| Feasibility summary     | `report/feasibility_summary.md`   |
+| Final report (RMarkdown) | `report/final_report.Rmd`          |
 
 ## Cohort Summary
 
