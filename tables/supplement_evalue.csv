@@ -1,0 +1,8 @@
+"metric","value","note"
+"Overlap-weighted risk (ASP)",0.4886,"Overlap-weighted proportion with AKI, ASP arm"
+"Overlap-weighted risk (CEF)",0.326,"Overlap-weighted proportion with AKI, cefazolin arm"
+"Adjusted marginal RR",1.4989,"Ratio of overlap-weighted risks (ASP/CEF)"
+"RR 95% CI lower",1.1671,"Bootstrap 95% CI lower bound for RR"
+"RR 95% CI upper",1.9016,"Bootstrap 95% CI upper bound for RR"
+"E-value (point estimate)",2.364,"Minimum RR for unmeasured confounder to explain away the association"
+"E-value (CI lower limit)",1.609,"Minimum RR for unmeasured confounder to explain away lower CI bound"

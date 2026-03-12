@@ -1,0 +1,4 @@
+"label","model_name","N","strategy","ATE_overlap","SE","CI_lower","CI_upper","p_value","is_primary"
+"cf_train overlap (stored in ate_results.csv)","cf_train",355,"Median imputation + indicators — TRAIN SET (80%)",0.2163,0.0518,0.1148,0.3177,2.93e-05,"NO — train-set artifact, incorrectly in ate_results.csv"
+"cf_full overlap — TRUE PRIMARY (stored in model_objects.rds)","cf_full",445,"Median imputation + indicators — FULL N=445",0.1807,0.0462,0.0902,0.2712,9.04e-05,"YES — this is the primary estimate"
+"cf_mia_full overlap — MIA SENSITIVITY","cf_mia_full",445,"grf native MIA — FULL N=445",0.1814,0.0462,0.0908,0.272,8.74e-05,"NO — sensitivity/supplement only"

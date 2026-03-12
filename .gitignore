@@ -1,0 +1,30 @@
+# Prompts
+prompt.txt
+*.prompt.txt
+prompt_check_inconsistencies.txt
+prompt_claude_initial.txt
+prompt_complement.txt
+
+# MIMIC data folder
+mimic-iv-3.1/
+mimic/
+data/
+data_raw/
+
+# Logs
+logs/
+*.log
+
+# Lancet PDF
+PIIS0140673625016241.pdf
+
+# R / Python optional clutter
+.Rhistory
+.RData
+.Rproj.user/
+.venv/
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store

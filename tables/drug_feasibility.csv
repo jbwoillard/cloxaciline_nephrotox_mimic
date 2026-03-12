@@ -1,0 +1,7 @@
+"source","drug_group","n_rows","n_patients","n_hadm","drugs_found"
+"prescriptions","ASP",4247,2535,2946,"Nafcillin; DiCLOXacillin; Nafcillin Desensitization; Oxacillin; Nafcillin Graded Challenge; Oxacillin Desensitization"
+"pharmacy","ASP",4239,2539,2948,"Nafcillin; DiCLOXacillin; Nafcillin Desensitization; Oxacillin; Nafcillin Graded Challenge; nafcillin"
+"emar","ASP",27769,849,952,"Nafcillin; DiCLOXacillin; Nafcillin Desensitization; Oxacillin; Nafcillin Graded Challenge; nafcillin"
+"prescriptions","Cefazolin",69154,46358,54344,"CefazoLIN; CeFAZolin; ceFAZolin; CeFAZolin Desensitization; CefazoLIN Desensitization; Cefazolin; CeFAZolin Duple 2g/50mL 50mL BAG; Cefazolin 2 g"
+"pharmacy","Cefazolin",68649,46339,54313,"CefazoLIN; CeFAZolin; CeFAZolin Graded Challenge; CeFAZolin Desensitization; CeFAZolin-Heparin Lock (For HD/Pheresis Catheter); CefazoLIN Desensitization; CefazoLIN-Heparin Lock (For HD/Pheresis Catheter); Cefazolin; CeFAZolin Duple 2g/50mL 50mL BAG; Cefazolin 2 gr; ceFAZolin"
+"emar","Cefazolin",153866,29737,33198,"CeFAZolin; CefazoLIN; CeFAZolin Graded Challenge; CeFAZolin Desensitization; CeFAZolin-Heparin Lock (For HD/Pheresis Catheter); Cefazolin 2 gr or Placebo; ceFAZolin"

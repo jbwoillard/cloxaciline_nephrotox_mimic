@@ -1,0 +1,13 @@
+Parameter,Value
+N (total),446
+N (ASP — nafcillin/oxacillin),138
+N (Cefazolin),308
+"AKI at 7 days — ASP, n (%)",67 (48.6%)
+"AKI at 7 days — CEF, n (%)",103 (33.5%)
+AKI at 7 days — Crude OR,1.87
+AKI at 7 days — Crude p-value,0.004
+"ATE (global, overlap-weighted)",0.181
+ATE 95% CI,"[0.090, 0.271]"
+ATE p-value,0.0001
+In-hospital mortality — ASP,24 (17.4%)
+In-hospital mortality — CEF,37 (12.0%)

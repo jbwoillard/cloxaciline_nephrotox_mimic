@@ -1,0 +1,3 @@
+"criterion","n_patients","n_hadm","note"
+"SA_blood_all",0,0,"Blood cultures positive for Staphylococcus aureus"
+"MSSA_confirmed_oxacillin_S",0,0,"Oxacillin susceptible (S) = MSSA"

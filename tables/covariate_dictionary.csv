@@ -1,0 +1,39 @@
+variable,description
+subject_id,Subject ID
+hadm_id,Admission ID
+t0,Time zero
+age,Age at admission (years)
+female,Female sex (0/1)
+race_cat,Race category
+creat_baseline,Baseline creatinine (mg/dL)
+egfr_baseline,Baseline eGFR (mL/min/1.73m2)
+wbc,WBC (K/uL)
+platelets,Platelets (K/uL)
+bilirubin,Total bilirubin (mg/dL)
+lactate,Lactate (mmol/L)
+glucose,Glucose (mg/dL)
+bicarbonate,Bicarbonate (mEq/L)
+sodium,Sodium (mEq/L)
+potassium,Potassium (mEq/L)
+bun,BUN (mg/dL)
+ckd_icd,CKD by ICD code
+ckd_egfr,CKD by eGFR<60
+ckd_any,CKD any definition
+diabetes,Diabetes mellitus
+hypertension,Hypertension
+heart_failure,Heart failure
+liver_disease,Liver disease
+cancer,Cancer
+copd,COPD
+hiv,HIV/AIDS
+charlson,Charlson comorbidity index (simplified)
+icu_at_t0,In ICU at t0
+icu_before_t0,ICU admission before t0
+vasopressor,Vasopressor before t0
+mech_vent,Mechanical ventilation in admission
+concomitant_vancomycin,Concomitant vancomycin
+concomitant_aminoglycoside,Concomitant aminoglycoside
+concomitant_loop_diuretic,Concomitant loop diuretic
+concomitant_nephrotox_any,Any nephrotoxic co-exposure
+hours_bc_to_t0,Hours from blood culture to t0
+admission_type,Admission type

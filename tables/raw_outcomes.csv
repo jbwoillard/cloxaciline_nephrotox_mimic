@@ -1,0 +1,3 @@
+W,treatment,N,AKI_7d_n,AKI_7d_pct,AKI_stage1_n,AKI_stage2_n,AKI_stage3_n,died_7d_n,died_7d_pct,died_inhosp_n,died_inhosp_pct,composite_n,composite_pct,mean_baseline_creat,mean_peak_creat,mean_delta_creat
+0,Cefazolin,308,103,33.6,77,14,12,21,6.8,37,12,114,37,1.88,2.51,0.63
+1,ASP (nafcillin/oxacillin),138,67,48.6,46,8,13,9,6.5,24,17.4,69,50,1.55,2.34,0.82
