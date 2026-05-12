@@ -28,7 +28,9 @@ pkgs <- c(
   "yaml",
   "here",
   "qs",
-  "grf"
+  "grf",
+  "xgboost",
+  "glmnet"
 )
 
 to_install <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
@@ -36,7 +38,11 @@ if (length(to_install) > 0) {
   install.packages(to_install, repos = repos, Ncpus = max(1, parallel::detectCores() - 1))
 }
 
-cat("\nPackages installés. Vérification grf:\n")
+cat("\nPackages installés. Vérification:\n")
 library(grf)
+library(xgboost)
+library(glmnet)
 packageVersion("grf")
+packageVersion("xgboost")
+packageVersion("glmnet")
 sessionInfo()
