@@ -28,7 +28,7 @@ It does **not** include:
 - intermediate results
 - tables
 - figures
-- legacy scripts from earlier GRF-only workflows
+
 
 All output directories such as `derived/`, `results/`, `tables/`, and `figures/` are generated locally at runtime and are not tracked in the repository.
 
@@ -58,8 +58,6 @@ Scripts `12` to `14` implement the main modeling strategy:
 Scripts `15` and `16` provide:
 - estimator robustness analysis across alternative causal estimators
 - additional manuscript revision analyses, including supplementary sensitivity analyses and diagnostic outputs
-
-Older exploratory or GRF-only scripts are not part of the current repository state.
 
 ---
 
