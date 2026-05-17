@@ -14,9 +14,17 @@ library(stringr)
 cat("=== 01_build_mssa_cohort.R ===\n")
 cat("Start:", format(Sys.time()), "\n\n")
 
-WORK_DIR <- "/Users/woillp01/Documents/cyrielle_mimic_cloxa"
-HOSP_DIR <- file.path(WORK_DIR, "mimic-iv-3.1/hosp")
-DERIVED_DIR <- file.path(WORK_DIR, "derived")
+if (!requireNamespace("here", quietly = TRUE)) install.packages("here")
+library(here)
+
+PROJECT_ROOT <- here::here()
+MIMIC_ROOT <- file.path(PROJECT_ROOT, "mimic-iv-3.1")
+HOSP_DIR <- file.path(MIMIC_ROOT, "hosp")
+DERIVED_DIR <- file.path(PROJECT_ROOT, "derived")
+
+cat("PROJECT_ROOT:", PROJECT_ROOT, "\n")
+cat("HOSP_DIR:", HOSP_DIR, "\n")
+cat("DERIVED_DIR:", DERIVED_DIR, "\n")
 
 # Helper: open DuckDB connection
 open_duck <- function() {
