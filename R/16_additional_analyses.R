@@ -843,195 +843,187 @@ if (dag_ok) {
 }
 
 ###############################################################################
-# ISSUE 8: Love plots — before and after adjustment
+# ISSUE 8: Love plot — 2 panels with patchwork
 ###############################################################################
-cat("\n--- Issue 8: Love plots before/after adjustment ---\n")
+cat("\n--- Issue 8: Love plot before/after adjustment (2 panels) ---\n")
 
-cobalt_ok <- suppressWarnings(requireNamespace("cobalt", quietly = TRUE))
+library(cobalt)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
 
-if (cobalt_ok) {
-  library(cobalt)
+col_before <- "#E69F00"   # orange
+col_after  <- "#0072B2"   # blue
 
-  # Before: raw SMD using cobalt
-  # Build a data frame with all covariates + treatment
-  covars_for_balance <- colnames(X_full)
+# --------------------------------------------------------------------------
+# 1) Use the patient-level covariate dataset that matches W_full / e_full
+# --------------------------------------------------------------------------
+X_bal <- as.data.frame(X_full_raw)
+W_bal <- as.vector(W_full)
+e_bal <- as.vector(e_full)
 
-  # Build standardized mean differences before and after IPW weighting
-  # Before: unweighted
-  bal_before <- tryCatch({
-    love.plot(
-      bal.tab(
-        as.data.frame(X_full),
-        treat = W_full,
-        binary = "std",
-        s.d.denom = "pooled"
-      ),
-      stat = "mean.diffs",
-      abs = TRUE,
-      thresholds = c(m = 0.1),
-      var.order = "unadjusted",
-      title = "Covariate Balance — Before Adjustment (Unadjusted)",
-      colors = c("#D6604D"),
-      shapes = c(16),
-      sample.names = c("Unadjusted")
-    )
-  }, error = function(e) {
-    cat("  love.plot before failed:", conditionMessage(e), "\n"); NULL
-  })
+cat(sprintf("  X_full_raw: %d rows x %d cols\n", nrow(X_bal), ncol(X_bal)))
+cat(sprintf("  W_full: %d | e_full: %d\n", length(W_bal), length(e_bal)))
 
-  # After: IPW-weighted using overlap weights (ATEw)
-  # Overlap weights: w_i = e(1-e) * (1/e for treated, 1/(1-e) for controls)
-  overlap_weights <- ifelse(W_full == 1, 1 - e_full, e_full)
-
-  bal_after <- tryCatch({
-    love.plot(
-      bal.tab(
-        as.data.frame(X_full),
-        treat = W_full,
-        weights = overlap_weights,
-        binary = "std",
-        s.d.denom = "pooled"
-      ),
-      stat = "mean.diffs",
-      abs = TRUE,
-      thresholds = c(m = 0.1),
-      var.order = "unadjusted",
-      title = "Covariate Balance — After Overlap Weighting (ATEw)",
-      colors = c("#2166AC"),
-      shapes = c(16),
-      sample.names = c("Overlap-weighted")
-    )
-  }, error = function(e) {
-    cat("  love.plot after failed:", conditionMessage(e), "\n"); NULL
-  })
-
-  if (!is.null(bal_before)) {
-    ggsave(file.path(FIGURES_DIR, "supp_love_plot_before_adjustment.png"),
-           bal_before, width = 9, height = 8, dpi = 300)
-    cat("  Saved: supp_love_plot_before_adjustment.png\n")
-  }
-
-  if (!is.null(bal_after)) {
-    ggsave(file.path(FIGURES_DIR, "supp_love_plot_after_adjustment.png"),
-           bal_after, width = 9, height = 8, dpi = 300)
-    cat("  Saved: supp_love_plot_after_adjustment.png\n")
-  }
-
-  # Combined balance summary table (before and after)
-  bal_tbl_before <- tryCatch({
-    bt <- bal.tab(as.data.frame(X_full), treat = W_full,
-                  binary = "std", s.d.denom = "pooled")
-    df <- bt$Balance
-    if (!is.null(df) && nrow(df) > 0 && "Diff.Un" %in% names(df)) df[["Diff.Un"]] else NULL
-  }, error = function(e) { cat("  bal.tab before error:", conditionMessage(e), "\n"); NULL })
-
-  bal_tbl_after <- tryCatch({
-    bt <- bal.tab(as.data.frame(X_full), treat = W_full,
-                  weights = overlap_weights,
-                  binary = "std", s.d.denom = "pooled")
-    df <- bt$Balance
-    if (!is.null(df) && nrow(df) > 0 && "Diff.Adj" %in% names(df)) df[["Diff.Adj"]] else NULL
-  }, error = function(e) { cat("  bal.tab after error:", conditionMessage(e), "\n"); NULL })
-
-  if (!is.null(bal_tbl_before) && !is.null(bal_tbl_after) &&
-      length(bal_tbl_before) == length(bal_tbl_after)) {
-    bal_summary_df <- data.frame(
-      variable        = colnames(X_full),
-      smd_unadjusted  = round(abs(bal_tbl_before), 4),
-      smd_adjusted    = round(abs(bal_tbl_after), 4),
-      achieved_balance = abs(bal_tbl_after) < 0.1
-    )
-    write.csv(bal_summary_df,
-              file.path(TABLES_DIR, "supp_balance_summary_before_after.csv"),
-              row.names = FALSE)
-    cat("  Saved: tables/supp_balance_summary_before_after.csv\n")
-    n_balanced <- sum(abs(bal_tbl_after) < 0.1, na.rm = TRUE)
-    n_total_cov <- length(bal_tbl_after)
-    cat(sprintf("  Balance achieved (SMD<0.1): %d / %d covariates after overlap weighting\n",
-                n_balanced, n_total_cov))
-  } else {
-    cat("  Balance summary table extraction failed — skipping CSV\n")
-  }
-
-} else {
-  cat("  cobalt not available — creating manual SMD-based love plot\n")
-
-  # Manual SMD computation
-  compute_smd <- function(X, W, weights = NULL) {
-    smd_vals <- sapply(seq_len(ncol(X)), function(j) {
-      x1 <- X[W == 1, j]; x0 <- X[W == 0, j]
-      if (is.null(weights)) {
-        m1 <- mean(x1, na.rm = TRUE); m0 <- mean(x0, na.rm = TRUE)
-        s1 <- sd(x1, na.rm = TRUE);   s0 <- sd(x0, na.rm = TRUE)
-      } else {
-        w1 <- weights[W == 1]; w0 <- weights[W == 0]
-        m1 <- weighted.mean(x1, w1, na.rm = TRUE)
-        m0 <- weighted.mean(x0, w0, na.rm = TRUE)
-        s1 <- sqrt(sum(w1 * (x1 - m1)^2, na.rm=TRUE) / sum(w1))
-        s0 <- sqrt(sum(w0 * (x0 - m0)^2, na.rm=TRUE) / sum(w0))
-      }
-      sp <- sqrt((s1^2 + s0^2) / 2)
-      if (is.na(sp) || sp == 0) return(NA)
-      (m1 - m0) / sp
-    })
-    names(smd_vals) <- colnames(X)
-    smd_vals
-  }
-
-  overlap_weights <- ifelse(W_full == 1, 1 - e_full, e_full)
-  smd_before <- compute_smd(X_full, W_full)
-  smd_after  <- compute_smd(X_full, W_full, weights = overlap_weights)
-
-  love_df <- data.frame(
-    variable    = colnames(X_full),
-    SMD_before  = abs(smd_before),
-    SMD_after   = abs(smd_after)
-  ) %>%
-    filter(!is.na(SMD_before)) %>%
-    arrange(desc(SMD_before)) %>%
-    head(25)
-
-  love_df_long <- tidyr::pivot_longer(love_df, cols = c("SMD_before","SMD_after"),
-                                      names_to = "Adjustment", values_to = "abs_SMD")
-  love_df_long$Adjustment <- ifelse(love_df_long$Adjustment == "SMD_before",
-                                    "Before (unadjusted)", "After (overlap-weighted)")
-  love_df_long$variable <- factor(love_df_long$variable,
-                                  levels = love_df$variable[order(love_df$SMD_before)])
-
-  p_love_combined <- ggplot(love_df_long, aes(x = abs_SMD, y = variable,
-                                               color = Adjustment, shape = Adjustment)) +
-    geom_vline(xintercept = 0.1, linetype = "dashed", color = "grey40") +
-    geom_point(size = 2.5, alpha = 0.85) +
-    scale_color_manual(values = c("Before (unadjusted)" = "#D6604D",
-                                   "After (overlap-weighted)" = "#2166AC")) +
-    scale_shape_manual(values = c("Before (unadjusted)" = 16,
-                                   "After (overlap-weighted)" = 15)) +
-    scale_x_continuous(limits = c(0, max(love_df_long$abs_SMD, na.rm = TRUE) + 0.05)) +
-    labs(title = "Covariate Balance — Before vs After Overlap Weighting",
-         subtitle = "Top 25 covariates by unadjusted SMD | Dashed line: SMD = 0.10",
-         x = "|Standardized Mean Difference|", y = "",
-         color = "", shape = "") +
-    theme_bw(base_size = 11) +
-    theme(legend.position = "bottom", panel.grid.minor = element_blank(),
-          plot.title = element_text(face = "bold"))
-
-  ggsave(file.path(FIGURES_DIR, "supp_love_plot_before_adjustment.png"),
-         p_love_combined, width = 9, height = 8, dpi = 300)
-  ggsave(file.path(FIGURES_DIR, "supp_love_plot_after_adjustment.png"),
-         p_love_combined, width = 9, height = 8, dpi = 300)
-  cat("  Saved: love plots (combined in both files)\n")
-
-  bal_summary_df <- data.frame(
-    variable       = colnames(X_full),
-    smd_unadjusted = round(abs(smd_before), 4),
-    smd_adjusted   = round(abs(smd_after), 4),
-    achieved_balance = abs(smd_after) < 0.1
-  )
-  write.csv(bal_summary_df,
-            file.path(TABLES_DIR, "supp_balance_summary_before_after.csv"),
-            row.names = FALSE)
-  cat("  Saved: tables/supp_balance_summary_before_after.csv\n")
+if (nrow(X_bal) != length(W_bal) || nrow(X_bal) != length(e_bal)) {
+  stop(sprintf(
+    "Inputs not aligned: nrow(X_full_raw)=%d, length(W_full)=%d, length(e_full)=%d",
+    nrow(X_bal), length(W_bal), length(e_bal)
+  ))
 }
+
+# Keep complete cases only
+keep <- complete.cases(X_bal) & !is.na(W_bal) & !is.na(e_bal)
+X_bal <- X_bal[keep, , drop = FALSE]
+W_bal <- W_bal[keep]
+e_bal <- e_bal[keep]
+
+cat(sprintf("  Final balance dataset: %d rows, %d covariates\n", nrow(X_bal), ncol(X_bal)))
+
+# Overlap weights
+overlap_weights <- ifelse(W_bal == 1, 1 - e_bal, e_bal)
+
+# --------------------------------------------------------------------------
+# 2) Separate balance objects: before and after
+# --------------------------------------------------------------------------
+bt_before <- bal.tab(
+  x = X_bal,
+  treat = W_bal,
+  binary = "std",
+  s.d.denom = "pooled",
+  un = TRUE
+)
+
+bt_after <- bal.tab(
+  x = X_bal,
+  treat = W_bal,
+  weights = overlap_weights,
+  binary = "std",
+  s.d.denom = "pooled",
+  un = TRUE
+)
+
+df_before <- bt_before$Balance
+df_after  <- bt_after$Balance
+
+plot_df <- data.frame(
+  variable = rownames(df_before),
+  before   = abs(df_before$Diff.Un),
+  after    = abs(df_after$Diff.Adj),
+  stringsAsFactors = FALSE
+) %>%
+  dplyr::filter(!is.na(before), !is.na(after)) %>%
+  dplyr::arrange(dplyr::desc(before))
+
+# Keep top 50 by pre-adjustment imbalance for readability
+plot_df <- plot_df[seq_len(min(50, nrow(plot_df))), , drop = FALSE]
+
+# Order variables once for both panels
+plot_df$variable <- factor(plot_df$variable, levels = rev(plot_df$variable))
+
+# Optional nicer labels if you have a named vector var_labels
+if (exists("var_labels")) {
+  lvl <- levels(plot_df$variable)
+  nice_lvl <- ifelse(lvl %in% names(var_labels), var_labels[lvl], lvl)
+  levels(plot_df$variable) <- nice_lvl
+}
+
+# Axis ranges
+before_max <- max(plot_df$before, na.rm = TRUE)
+after_max  <- max(plot_df$after, na.rm = TRUE)
+
+before_xlim <- max(0.40, before_max * 1.05)
+after_xlim  <- max(0.01, after_max * 1.15)
+
+# --------------------------------------------------------------------------
+# 3) Panel A: before adjustment
+# --------------------------------------------------------------------------
+p_before <- ggplot(plot_df, aes(x = before, y = variable)) +
+  geom_vline(xintercept = 0.1, linetype = "dashed", color = "grey45", linewidth = 0.5) +
+  geom_point(color = col_before, size = 2.6) +
+  scale_x_continuous(limits = c(0, before_xlim)) +
+  labs(
+    title = "A. Before adjustment",
+    x = "|Standardized mean difference|",
+    y = NULL
+  ) +
+  theme_bw(base_size = 10.5) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 11),
+    axis.title.x = element_text(size = 10.5),
+    axis.text.x = element_text(size = 9.5),
+    axis.text.y = element_text(size = 8.5),
+    plot.margin = margin(8, 8, 8, 8)
+  )
+
+# --------------------------------------------------------------------------
+# 4) Panel B: after adjustment (zoomed axis)
+# --------------------------------------------------------------------------
+p_after <- ggplot(plot_df, aes(x = after, y = variable)) +
+  geom_vline(xintercept = 0.1, linetype = "dashed", color = "grey45", linewidth = 0.5) +
+  geom_point(color = col_after, size = 2.6) +
+  scale_x_continuous(limits = c(0, after_xlim)) +
+  labs(
+    title = "B. After overlap weighting",
+    x = "|Standardized mean difference|",
+    y = NULL
+  ) +
+  theme_bw(base_size = 10.5) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 11),
+    axis.title.x = element_text(size = 10.5),
+    axis.text.x = element_text(size = 9.5),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.margin = margin(8, 8, 8, 0)
+  )
+
+# --------------------------------------------------------------------------
+# 5) Combine with patchwork
+# --------------------------------------------------------------------------
+p_love_2panel <- p_before + p_after +
+  plot_layout(widths = c(1.25, 1)) +
+  plot_annotation(
+    title = "Baseline covariate balance before and after overlap weighting",
+    subtitle = "dashed line indicates SMD = 0.10",
+    theme = theme(
+      plot.title = element_text(face = "bold", size = 13),
+      plot.subtitle = element_text(size = 10.5)
+    )
+  )
+
+ggsave(
+  file.path(FIGURES_DIR, "supp_love_plot_before_after_adjustment.png"),
+  p_love_2panel,
+  width = 10.5,
+  height = 7.2,
+  dpi = 300,
+  bg = "white"
+)
+cat("  Saved: supp_love_plot_before_after_adjustment.png\n")
+
+# --------------------------------------------------------------------------
+# 6) Save full balance summary table
+# --------------------------------------------------------------------------
+bal_summary_df <- data.frame(
+  variable = rownames(df_before),
+  smd_unadjusted = round(abs(df_before$Diff.Un), 4),
+  smd_adjusted   = round(abs(df_after$Diff.Adj), 6),
+  achieved_balance = abs(df_after$Diff.Adj) < 0.1,
+  stringsAsFactors = FALSE
+)
+
+write.csv(
+  bal_summary_df,
+  file.path(TABLES_DIR, "supp_balance_summary_before_after.csv"),
+  row.names = FALSE
+)
+cat("  Saved: tables/supp_balance_summary_before_after.csv\n")
 
 ###############################################################################
 # ISSUE 9: Updated flowchart with CONSORT numbers
