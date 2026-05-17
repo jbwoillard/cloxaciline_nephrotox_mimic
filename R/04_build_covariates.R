@@ -14,11 +14,14 @@ library(stringr)
 cat("=== 04_build_covariates.R ===\n")
 cat("Start:", format(Sys.time()), "\n\n")
 
-WORK_DIR <- "/Users/woillp01/Documents/cyrielle_mimic_cloxa"
-HOSP_DIR <- file.path(WORK_DIR, "mimic-iv-3.1/hosp")
-ICU_DIR  <- file.path(WORK_DIR, "mimic-iv-3.1/icu")
-DERIVED_DIR <- file.path(WORK_DIR, "derived")
-TABLES_DIR  <- file.path(WORK_DIR, "tables")
+
+PROJECT_ROOT <- here::here()
+
+MIMIC_ROOT  <- Sys.getenv("MIMIC_ROOT", unset = file.path(PROJECT_ROOT, "mimic-iv-3.1"))
+HOSP_DIR    <- file.path(MIMIC_ROOT, "hosp")
+ICU_DIR     <- file.path(MIMIC_ROOT, "icu")
+DERIVED_DIR <- Sys.getenv("DERIVED_DIR", unset = file.path(PROJECT_ROOT, "derived"))
+TABLES_DIR  <- Sys.getenv("TABLES_DIR", unset = file.path(PROJECT_ROOT, "tables"))
 
 # Load cohort
 cohort <- readRDS(file.path(DERIVED_DIR, "cohort_treated.rds"))
