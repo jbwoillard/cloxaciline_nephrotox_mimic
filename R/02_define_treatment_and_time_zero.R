@@ -14,9 +14,10 @@ library(stringr)
 cat("=== 02_define_treatment_and_time_zero.R ===\n")
 cat("Start:", format(Sys.time()), "\n\n")
 
-WORK_DIR <- "/Users/woillp01/Documents/cyrielle_mimic_cloxa"
-HOSP_DIR <- file.path(WORK_DIR, "mimic-iv-3.1/hosp")
-DERIVED_DIR <- file.path(WORK_DIR, "derived")
+PROJECT_ROOT <- here::here()
+MIMIC_ROOT <- file.path(PROJECT_ROOT, "mimic-iv-3.1")
+HOSP_DIR <- file.path(MIMIC_ROOT, "hosp")
+DERIVED_DIR <- file.path(PROJECT_ROOT, "derived")
 
 # Load candidates
 mssa_cands <- readRDS(file.path(DERIVED_DIR, "mssa_candidates.rds"))
