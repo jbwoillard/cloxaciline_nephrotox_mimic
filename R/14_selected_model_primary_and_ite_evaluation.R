@@ -895,35 +895,86 @@ cat("  Saved: fig4_ite_distribution_test.png\n")
 # --------------------------------------------------------------------------
 # fig5_ite_strata_test.png
 # --------------------------------------------------------------------------
-cat("  fig5: ITE strata (forest plot style)\n")
+cat("  fig5: ITE strata (Lancet-style clinical plot)\n")
 
-strata_plot_df <- strata_results
-strata_plot_df$stratum <- factor(strata_plot_df$stratum,
-                                  levels = rev(c("T1 (Low ITE)", "T2 (Mid ITE)",
-                                                 "T3 (High ITE)", "Overall (test)")))
+# Keep tertiles only for the main figure
+strata_plot_df <- subset(strata_results, stratum != "Overall (test)")
 
-p5 <- ggplot(strata_plot_df,
-             aes(x = obs_dr_ate, y = stratum,
-                 color = (stratum == "Overall (test)"))) +
-  geom_vline(xintercept = 0, linetype = "dotted", color = "grey50") +
-  geom_errorbarh(aes(xmin = ci_lo, xmax = ci_hi), height = 0.15, linewidth = 0.9) +
-  geom_point(aes(size = n), shape = 15) +
-  geom_text(aes(label = sprintf("%.3f\n[%.3f, %.3f]\n(n=%d)",
-                                 obs_dr_ate, ci_lo, ci_hi, n)),
-            hjust = -0.1, size = 2.8) +
-  scale_color_manual(values = c("FALSE" = pal_blue, "TRUE" = pal_red)) +
-  scale_size_continuous(range = c(3, 6)) +
-  xlim(min(strata_plot_df$ci_lo) - 0.05,
-       max(strata_plot_df$ci_hi) + 0.25) +
-  labs(title = "DR ATE by ITE Tertile — Test Set (Held-Out Validation)",
-       subtitle = "ITE tertiles defined in test set; DR ATE = doubly robust average treatment effect",
-       x = "Doubly Robust ATE (ASP − CEF, probability scale)",
-       y = "ITE Stratum") +
-  theme_clinical +
-  theme(legend.position = "none")
+# Ordered tertiles with concise labels
+strata_plot_df$stratum <- factor(
+  strata_plot_df$stratum,
+  levels = c("T1 (Low ITE)", "T2 (Mid ITE)", "T3 (High ITE)"),
+  labels = c("Lower third", "Middle third", "Upper third")
+)
+
+# Convert to percentage scale
+strata_plot_df$ate_pct   <- 100 * strata_plot_df$obs_dr_ate
+strata_plot_df$ci_lo_pct <- 100 * strata_plot_df$ci_lo
+strata_plot_df$ci_hi_pct <- 100 * strata_plot_df$ci_hi
+
+# Overall estimate
+overall_row <- subset(strata_results, stratum == "Overall (test)")
+overall_ate_pct <- 100 * overall_row$obs_dr_ate
+
+# Define colors
+strata_cols <- c(
+  "Lower third"  = pal_blue,
+  "Middle third" = "grey55",
+  "Upper third"  = pal_red
+)
+
+# Simple labels
+strata_plot_df$label_txt <- sprintf("%.1f%%", strata_plot_df$ate_pct)
+
+# Label vertical offset
+strata_plot_df$label_y <- ifelse(
+  strata_plot_df$ate_pct >= 0,
+  strata_plot_df$ci_hi_pct + 2.2,
+  strata_plot_df$ci_lo_pct - 2.2
+)
+
+# y-axis limits
+y_min <- min(strata_plot_df$ci_lo_pct, 0, na.rm = TRUE) - 5
+y_max <- max(strata_plot_df$ci_hi_pct, overall_ate_pct, 0, na.rm = TRUE) + 6
+
+# A cleaner theme, closer to journal style
+theme_lancet_like <- theme_bw(base_size = 11) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "grey90", linewidth = 0.3),
+    panel.border = element_rect(color = "black", linewidth = 0.6),
+    axis.title.x = element_text(size = 11, margin = margin(t = 10)),
+    axis.title.y = element_text(size = 11, margin = margin(r = 10)),
+    axis.text.x = element_text(size = 10),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(size = 13, face = "bold", hjust = 0),
+    plot.subtitle = element_text(size = 10.5, hjust = 0),
+    plot.caption = element_text(size = 9, hjust = 0),
+    legend.position = "none",
+    plot.margin = margin(10, 18, 10, 10)
+  )
+
+p5 <- ggplot(strata_plot_df, aes(x = stratum, y = ate_pct, color = stratum)) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "grey35", linewidth = 0.5) +
+  geom_hline(yintercept = overall_ate_pct, linetype = "dashed", color = "grey45", linewidth = 0.5) +
+  geom_errorbar(aes(ymin = ci_lo_pct, ymax = ci_hi_pct), width = 0.10, linewidth = 0.8) +
+  geom_point(size = 3.2) +
+  geom_text(aes(y = label_y, label = label_txt), size = 3.3, color = "black") +
+  scale_color_manual(values = strata_cols) +
+  coord_cartesian(ylim = c(y_min, y_max), clip = "off") +
+  labs(
+    title = "Observed Absolute Risk Difference in 7-Day AKI by Predicted ITE Tertile",
+    subtitle = "Held-out test set",
+    x = "Patients grouped by predicted individualized treatment effect",
+    y = "Absolute risk difference (%)",
+    caption = sprintf("Dashed line indicates overall test-set DR ATE (%.1f%%).", overall_ate_pct)
+  ) +
+  theme_lancet_like
 
 ggsave(file.path(FIGURES_DIR, "fig5_ite_strata_test.png"),
-       p5, width=9, height=5, dpi=300)
+       p5, width = 7.2, height = 4.8, dpi = 300)
+
 cat("  Saved: fig5_ite_strata_test.png\n")
 
 # --------------------------------------------------------------------------

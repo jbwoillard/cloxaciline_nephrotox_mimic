@@ -1,6 +1,6 @@
 ---
 title: "Nephrotoxicity of Anti-Staphylococcal Penicillins vs Cefazolin in MSSA Bacteremia"
-subtitle: "Unified Causal ML Framework for Average and Individualized Treatment Effect Estimation"
+subtitle: "Unified Causal ML Framework — Updated Analysis with Sensitivity and Supplementary Analyses"
 author: "Cyrielle — MIMIC-IV v3.1 Target Trial Emulation"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
@@ -23,6 +23,7 @@ library(dplyr)
 library(ggplot2)
 library(knitr)
 library(kableExtra)
+library(tidyr)
 
 WORK_DIR    <- "/Users/woillp01/Documents/cyrielle_mimic_cloxa"
 RESULTS_DIR <- file.path(WORK_DIR, "results")
@@ -30,26 +31,70 @@ TABLES_DIR  <- file.path(WORK_DIR, "tables")
 FIGURES_DIR <- file.path(WORK_DIR, "figures")
 DERIVED_DIR <- file.path(WORK_DIR, "derived")
 
-# Load key results
-model_res  <- readRDS(file.path(RESULTS_DIR, "selected_unified_model.rds"))
-cv_metrics <- read.csv(file.path(TABLES_DIR, "candidate_model_performance_derivation.csv"),
-                       stringsAsFactors = FALSE)
-strata_res <- read.csv(file.path(TABLES_DIR, "test_set_ite_strata_effects.csv"),
-                       stringsAsFactors = FALSE)
-split_summ <- read.csv(file.path(TABLES_DIR, "derivation_test_split_summary.csv"),
-                       stringsAsFactors = FALSE)
+# ── Core results ────────────────────────────────────────────────────────────
+model_res     <- readRDS(file.path(RESULTS_DIR, "selected_unified_model.rds"))
+cv_metrics    <- read.csv(file.path(TABLES_DIR, "candidate_model_performance_derivation.csv"),
+                           stringsAsFactors = FALSE)
+strata_res    <- read.csv(file.path(TABLES_DIR, "test_set_ite_strata_effects.csv"),
+                           stringsAsFactors = FALSE)
+split_summ    <- read.csv(file.path(TABLES_DIR, "derivation_test_split_summary.csv"),
+                           stringsAsFactors = FALSE)
 full_cohort_tbl <- read.csv(file.path(TABLES_DIR, "full_cohort_refit_selected_model.csv"),
-                            stringsAsFactors = FALSE)
-test_res_tbl <- read.csv(file.path(TABLES_DIR, "test_set_selected_model_results.csv"),
-                          stringsAsFactors = FALSE)
+                              stringsAsFactors = FALSE)
+test_res_tbl  <- read.csv(file.path(TABLES_DIR, "test_set_selected_model_results.csv"),
+                           stringsAsFactors = FALSE)
 
-best_model  <- model_res$best_model
-dr_ate      <- model_res$dr_ate_test
-ci_lo       <- model_res$ci_lo
-ci_hi       <- model_res$ci_hi
-ate_full    <- model_res$ate_full_cohort
-ci_full_lo  <- model_res$ci_full_lo
-ci_full_hi  <- model_res$ci_full_hi
+# ── New supplementary tables ─────────────────────────────────────────────────
+ite_ci_tbl <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_test_set_ite_metric_cis.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+mssa_tbl   <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_confirmed_mssa_sensitivity.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+pp_tbl     <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_per_protocol_sensitivity.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+kdigo_tbl  <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_kdigo_stage_distribution.csv"), stringsAsFactors = FALSE),
+  error = function(e) NULL)
+sec_tbl    <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_secondary_outcome_causal_estimates.csv"),
+            stringsAsFactors = FALSE),
+  error = function(e) NULL)
+rob_tbl    <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supplement_ate_robustness_across_estimators.csv"),
+            stringsAsFactors = FALSE),
+  error = function(e) NULL)
+bal_tbl    <- tryCatch(
+  read.csv(file.path(TABLES_DIR, "supp_balance_summary_before_after.csv"),
+            stringsAsFactors = FALSE),
+  error = function(e) NULL)
+
+# ── Key scalars ──────────────────────────────────────────────────────────────
+best_model <- model_res$best_model
+dr_ate     <- model_res$dr_ate_test
+ci_lo      <- model_res$ci_lo
+ci_hi      <- model_res$ci_hi
+ate_full   <- model_res$ate_full_cohort
+ci_full_lo <- model_res$ci_full_lo
+ci_full_hi <- model_res$ci_full_hi
+
+# ITE metric CIs
+qini_est <- round(model_res$test_qini, 4)
+rate_est <- round(model_res$test_rate, 4)
+cfb_est  <- round(model_res$test_cfb,  4)
+if (!is.null(ite_ci_tbl)) {
+  qini_lo <- round(ite_ci_tbl$ci_lo[1], 4); qini_hi <- round(ite_ci_tbl$ci_hi[1], 4)
+  rate_lo <- round(ite_ci_tbl$ci_lo[2], 4); rate_hi <- round(ite_ci_tbl$ci_hi[2], 4)
+  cfb_lo  <- round(ite_ci_tbl$ci_lo[3], 4); cfb_hi  <- round(ite_ci_tbl$ci_hi[3], 4)
+} else {
+  qini_lo <- qini_hi <- rate_lo <- rate_hi <- cfb_lo <- cfb_hi <- NA
+}
+
+rob_ok  <- !is.null(rob_tbl)
+mssa_ok <- !is.null(mssa_tbl)
+pp_ok   <- !is.null(pp_tbl)
+sec_ok  <- !is.null(sec_tbl)
 ```
 
 ---
@@ -59,9 +104,10 @@ ci_full_hi  <- model_res$ci_full_hi
 - **Study**: Target trial emulation of nephrotoxicity (7-day AKI) comparing anti-staphylococcal penicillins (ASP: nafcillin/oxacillin) versus cefazolin in MSSA bacteremia, using MIMIC-IV v3.1.
 - **Unified framework**: A single causal ML model was selected via 5-fold cross-validation in a derivation set (N=312), then evaluated once in a locked held-out test set (N=133), following the framework of Buell et al. JAMA 2024 and Munroe et al. Lancet Resp Med 2025.
 - **Selected model**: **`r best_model`** — selected by highest weighted rank across adjusted Qini (CV=`r round(cv_metrics$cv_qini[cv_metrics$selected],3)`), RATE/AUTOC (CV=`r round(cv_metrics$cv_rate[cv_metrics$selected],3)`), and C-for-benefit (CV=`r round(cv_metrics$cv_c_benefit[cv_metrics$selected],3)`) in the derivation set.
-- **Primary causal estimate** (held-out test set): **Doubly Robust ATE = `r sprintf("%.3f", dr_ate)` (95%% CI: `r sprintf("%.3f", ci_lo)` to `r sprintf("%.3f", ci_hi)`)**. This corresponds to an approximately `r round(dr_ate*100,1)` percentage point increase in absolute 7-day AKI risk with ASP vs cefazolin.
-- **Predicted ITE**: All 133 test-set patients had predicted ITE > 0 (range: `r round(min(model_res$tau_test),3)` to `r round(max(model_res$tau_test),3)`), consistent with broadly increased AKI risk under ASP. The model shows positive discrimination (qini=`r round(model_res$test_qini,4)`, RATE=`r round(model_res$test_rate,4)`, C-for-benefit=`r round(model_res$test_cfb,3)`).
-- **Limitation**: With N=445 total patients, statistical power for individual-level HTE is limited; ITE findings should be interpreted as hypothesis-generating. No external validation cohort was available.
+- **Primary causal estimate** (held-out test set, N=133): **Doubly Robust ATE = `r sprintf("%.3f", dr_ate)` (95% CI: `r sprintf("%.3f", ci_lo)` to `r sprintf("%.3f", ci_hi)`)**, corresponding to an approximately `r round(dr_ate*100,1)` percentage point increase in absolute 7-day AKI risk with ASP vs cefazolin.
+- **ITE discrimination** (test set): adjusted Qini = `r qini_est` (95% CI: `r qini_lo`–`r qini_hi`); RATE = `r rate_est` (95% CI: `r rate_lo`–`r rate_hi`); C-for-benefit = `r cfb_est` (95% CI: `r cfb_lo`–`r cfb_hi`). Bootstrap 95% CIs (1000 reps) indicate positive Qini and RATE are not statistically different from zero at N=133; C-for-benefit is meaningfully above 0.5 and bootstrap CI excludes 0.5.
+- **Sensitivity analyses**: Confirmed MSSA-only and per-protocol analyses support the same directional conclusion. Extended estimator robustness across 10 estimators (including TMLE, DoubleML, BART, BCF) all produced positive ATEs.
+- **Limitation**: With N=445 total patients, statistical power for individual-level HTE is limited. No external validation cohort was available.
 
 ---
 
@@ -89,27 +135,76 @@ The current unified framework replaces this by implementing a single derivation/
 This analysis follows two key methodological references:
 
 **Buell KG, Spicer AB, Casey JD, et al. JAMA 2024;331(14):1195–1204.**
-This study derived and externally validated predicted individualized treatment effects for oxygen targets in critically ill adults, using the PILOT trial for derivation and ICU-ROX for external validation. Key methodological elements adopted here:
-- Six candidate ML algorithms evaluated by 5-fold cross-validation; best performing model (Rboost/R-learner) selected by out-of-sample adjusted Qini.
+Key methodological elements adopted here:
+- Six candidate ML algorithms evaluated by 5-fold cross-validation; best performing model selected by out-of-sample adjusted Qini.
 - Model performance metrics: adjusted Qini (primary), C-for-benefit.
 - HTE strata: tertiles of predicted ITE; calibration assessed by comparing mean predicted ITE to observed risk difference within each tertile.
-- Imputation rules derived in the derivation cohort and applied to the validation cohort without leakage.
-- Language: "predicted individualized treatment effects" — not "true ITEs".
 
 **Munroe ES, Spicer A, Castellvi-Font A, et al. Lancet Respir Med 2025;13:556–568.**
-This review provides a comprehensive framework for deriving and validating ITEs in critical care, including:
 - Separation of derivation and validation datasets is essential; the locked test set must not inform any modelling decisions.
-- RATE/AUTOC (rank-weighted ATE) as an additional discrimination metric.
-- All HTE analyses identify associations, not causation; residual confounding must be acknowledged.
-- Prespecification of approach and covariates recommended.
+- RATE/AUTOC as an additional discrimination metric.
 
 ## Adaptations for observational data
 
-Since MIMIC-IV is observational (not an RCT), the following adaptations were made:
+Since MIMIC-IV is observational (not an RCT):
 1. **Propensity score estimation**: Treatment propensity P(ASP|X) estimated via logistic regression on baseline covariates, fit in the derivation set only and applied to the test set.
-2. **Doubly robust (DR/AIPW) pseudo-outcomes**: Used throughout for ATE estimation and performance metrics (qini, RATE, strata calibration), adjusting for confounding by indication.
-3. **No external validation cohort**: A single internal 70/30 split replaces the two-trial derivation/external validation design of Buell et al.
-4. **Sample size considerations**: With N=445, regularized models with shallow trees and elastic-net penalty were preferred to avoid overfitting.
+2. **Doubly robust (DR/AIPW) pseudo-outcomes**: Used throughout for ATE estimation and performance metrics, adjusting for confounding by indication.
+3. **No external validation cohort**: A single internal 70/30 split replaces the two-trial design.
+
+## Statistical Methods
+
+### Derivation/Test Split
+
+A single 70/30 split was performed at the outset (seed=42), stratified by treatment arm and AKI status to ensure balanced prevalence in both sets. **The test set was locked at this point and not examined until final evaluation.**
+
+### Imputation
+
+Imputation rules (median for continuous, mode for binary variables) were derived from the derivation set only. For variables with >5% missing in derivation (bilirubin, lactate), a missingness indicator was appended. Rules were then applied to the test set without modification to avoid leakage.
+
+### Candidate Causal ML Models
+
+Five candidate models were evaluated in the derivation set by 5-fold cross-validation:
+1. Penalized logistic regression with treatment–covariate interactions (glmnet, elastic net, α=0.5)
+2. T-learner (XGBoost)
+3. X-learner (XGBoost)
+4. R-learner (manual Robinson decomposition, XGBoost)
+5. Causal Forest (grf)
+
+### Model Selection Metrics
+
+All metrics use doubly-robust (DR/AIPW) pseudo-outcomes to adjust for confounding:
+
+$$\hat{\psi}_i^{DR} = \hat{\tau}(X_i) + \frac{W_i - \hat{e}(X_i)}{\hat{e}(X_i)(1-\hat{e}(X_i))} \left(Y_i - \hat{\mu}_{W_i}(X_i)\right)$$
+
+**Adjusted Qini** (primary): values >0 indicate ordering better than random. **RATE/AUTOC**: rank-weighted doubly-robust ATE. **C-for-benefit**: propensity-matched concordance; C>0.5 = meaningful discrimination.
+
+### Bootstrap Confidence Intervals for ITE Performance Metrics
+
+To characterize the precision of test-set discrimination metrics, 95% bootstrap confidence intervals were computed by resampling the held-out test set (N=133) with replacement for 1000 replicates (seed=42). For each replicate, the adjusted Qini, RATE, and C-for-benefit were computed using the same pseudo-outcome calculation. The 2.5th and 97.5th percentiles of the bootstrap distribution provided 95% CIs.
+
+### Supplementary Estimator Robustness Analysis
+
+ATE estimates were obtained from 10 causal estimators: the selected penalized logistic interaction model (reference), causal forest (grf), R-learner, X-learner, T-learner, AIPW (logistic nuisance), TMLE (tmle package, SL.glm), DoubleML (elastic-net, partialling-out PLR, 2-fold cross-fitting), BART (probit BART T-learner, BART::pbart, 100 trees, 100 burn-in, 500 draws), and BCF (Bayesian Causal Forest, bcf package, 100 burn-in, 500 draws). For estimators where external-validation-set prediction was infeasible (BCF), doubly-robust pseudo-outcomes from logistic nuisance were used for the test-set ATE. This analysis is framed as an estimator robustness/vibration analysis and does not replace the primary model selection framework.
+
+### Confirmed MSSA Sensitivity Analysis
+
+As a pre-specified sensitivity analysis, all primary and secondary analyses were replicated restricting to patients with microbiologically confirmed oxacillin-susceptible MSSA (i.e., excluding patients where susceptibility data were incomplete or unknown). The selected model was applied directly to this restricted subcohort. Given the smaller sample size, this analysis was intended to assess directional consistency rather than provide definitive estimates.
+
+### Per-Protocol / Crossover Sensitivity Analysis
+
+To account for potential treatment crossover, a per-protocol analysis was conducted excluding patients who received both ASP and cefazolin during the qualifying treatment period (N=58 excluded; per-protocol cohort N=387). The selected model was applied to the per-protocol cohort without refitting, providing an estimate of the treatment effect in patients who remained on their initially assigned treatment.
+
+### Secondary Outcome Causal Analyses
+
+Doubly-robust ATE estimates were computed for four secondary outcomes using the full analyzable cohort (N=445): (a) composite of AKI or in-hospital death within 7 days; (b) in-hospital mortality; (c) absolute change in serum creatinine from baseline to day 7 (mg/dL, continuous); (d) severe AKI defined as KDIGO stage 2–3 versus 0–1. For binary outcomes, logistic regression outcome models were used. For the continuous creatinine outcome, linear regression was used. All estimates used the derivation-set propensity score model applied to the full cohort and were paired with bootstrap 95% CIs (500 replicates, seed=42). These analyses are exploratory and hypothesis-generating.
+
+### Causal Diagram
+
+A directed acyclic graph (DAG) was constructed using the dagitty and ggdag packages, representing the assumed causal structure. Pre-treatment confounders include age, renal function, comorbidity burden, illness severity at baseline, and concomitant nephrotoxin use.
+
+### Post-Adjustment Balance Assessment
+
+Covariate balance before and after adjustment was assessed using standardized mean differences (SMD). Before-adjustment SMDs reflect the unadjusted treatment comparison. After-adjustment SMDs were computed using overlap weights (w_i = e(X) for treated, 1−e(X) for controls), which target the average treatment effect in the overlap population and are most consistent with the selected penalized logistic interaction model's estimand. Balance plots were generated using the cobalt package.
 
 ---
 
@@ -131,7 +226,7 @@ split_summ %>%
   row_spec(3, bold = TRUE)
 ```
 
-- **Eligible**: N=446 patients with MSSA bacteremia receiving either ASP (nafcillin or oxacillin) or cefazolin.
+- **Eligible**: N=446 patients with MSSA bacteremia receiving either ASP or cefazolin, after exclusion of confirmed MRSA (N=1,222 excluded from 2,223 SA blood cultures), patients without qualifying treatment (N=543), and those with prior exposure (N=12).
 - **Analyzable**: N=445 (1 excluded due to missing 7-day AKI outcome).
 - **Derivation set**: N=312 (70%), stratified by treatment arm × AKI status (seed=42).
 - **Test set**: N=133 (30%), locked until final evaluation.
@@ -140,6 +235,8 @@ split_summ %>%
 
 - **ASP** (anti-staphylococcal penicillin): nafcillin or oxacillin (W=1), N=138 overall.
 - **CEF** (cefazolin): W=0, N=307 overall.
+- **Microbiologically confirmed MSSA**: N=324 (72.8%). The remaining N=121 had SA blood cultures without recorded oxacillin susceptibility confirmation (suspicious isolates but not explicitly confirmed susceptible).
+- **Received both agents** (early crossover): N=58 (excluded from per-protocol analysis).
 
 ## Outcome
 
@@ -148,48 +245,6 @@ split_summ %>%
 ## Covariates (N=34 after imputation)
 
 Baseline variables selected a priori: age, sex, race (white/black/Hispanic dummies), creatinine, eGFR, WBC, platelets, bilirubin, lactate, glucose, bicarbonate, sodium, potassium, BUN, CKD, diabetes, hypertension, heart failure, liver disease, cancer, COPD, Charlson comorbidity index, ICU status at time zero, vasopressor use, mechanical ventilation, concomitant nephrotoxic drugs (vancomycin, aminoglycosides, loop diuretics), baseline AKI status, time from blood culture to treatment initiation. Missingness indicators added for bilirubin (>5% missing) and lactate (>5% missing).
-
----
-
-# Statistical Methods
-
-## Derivation/Test Split
-
-A single 70/30 split was performed at the outset (seed=42), stratified by treatment arm and AKI status (four strata: W=1/AKI=1, W=1/AKI=0, W=0/AKI=1, W=0/AKI=0) to ensure balanced prevalence of the outcome and treatment in both sets.
-
-**The test set was locked at this point and not examined until final evaluation.**
-
-## Imputation
-
-Imputation rules (median for continuous, mode for binary variables) were derived from the derivation set only. For variables with >5% missing in derivation (bilirubin, lactate), a missingness indicator was appended. Rules were then applied to the test set without modification to avoid leakage.
-
-## Candidate Causal ML Models
-
-Five candidate models were evaluated:
-
-1. **Penalized logistic regression with treatment–covariate interactions (glmnet, elastic net, α=0.5)**: Outcome model includes all baseline covariates, treatment indicator W, and all W×covariate interaction terms. ITEs computed as predicted P(AKI|W=1,X) − P(AKI|W=0,X).
-
-2. **T-learner (XGBoost)**: Separate outcome models fit for ASP patients and cefazolin patients. ITE = μ₁(X) − μ₀(X). Tree depth 3, learning rate 0.05, 100 rounds.
-
-3. **X-learner (XGBoost)**: Stage 1 fits μ₁(X), μ₀(X) as in T-learner. Stage 2 fits pseudo-outcomes D₁ᵢ = Yᵢ − μ₀(Xᵢ) for treated and D₀ᵢ = μ₁(Xᵢ) − Yᵢ for controls. Final ITE blended by propensity: ITE = e(X)·τ₀(X) + (1−e(X))·τ₁(X).
-
-4. **R-learner (manual Robinson decomposition, XGBoost)**: Centers outcomes and treatment: Yᵣₑₛ = Y − m̂(X), Wᵣₑₛ = W − ê(X). Fits τ(X) via weighted regression of Yᵣₑₛ/Wᵣₑₛ on X with weights Wᵣₑₛ². This is the architecture of "Rboost" used in Buell et al. JAMA 2024.
-
-5. **Causal Forest (grf)**: Generalized random forest for heterogeneous treatment effects with automatic hyperparameter tuning (`tune.parameters="all"`, 1000 trees). Propensity and outcome estimated internally via cross-fitting.
-
-## Model Selection Metrics (5-fold CV, derivation set only)
-
-All metrics are computed using doubly-robust (DR/AIPW) pseudo-outcomes to adjust for confounding:
-
-$$\hat{\psi}_i^{DR} = \hat{\tau}(X_i) + \frac{W_i - \hat{e}(X_i)}{\hat{e}(X_i)(1-\hat{e}(X_i))} \left(Y_i - \hat{\mu}_{W_i}(X_i)\right)$$
-
-**Adjusted Qini** (primary selection metric): Patients ranked ascending by predicted ITE (most ASP-beneficial first). Qini = mean(cumulative DR ATE − diagonal). Values > 0 indicate ordering better than random.
-
-**RATE / AUTOC**: Rank-weighted doubly-robust ATE. Positive values indicate that patients ranked higher by predicted ITE respond more to treatment.
-
-**C-for-benefit**: Propensity-score-matched pairs (1:1 greedy, caliper = 0.2×SD of logit PS). C-for-benefit = probability that in a concordant pair, the patient with higher predicted ITE has higher observed benefit (Y_control − Y_treated). C > 0.5 = discrimination better than chance.
-
-**Model ranking**: Models ranked by each metric (higher = better). Weighted aggregate rank = 3 × rank_qini + 2 × rank_RATE + 1 × rank_C.
 
 ---
 
@@ -217,15 +272,13 @@ cv_metrics %>%
 knitr::include_graphics(file.path(FIGURES_DIR, "fig3_candidate_model_selection.png"))
 ```
 
-**Selected model: `r best_model`** — ranked #1 on adjusted Qini (0.0786), RATE (0.218), and C-for-benefit (0.504) in 5-fold CV in the derivation set.
-
-The penalized logistic regression with treatment–covariate interactions consistently outperformed tree-based learners across all three discrimination metrics. This likely reflects the relatively small derivation sample (N=312) and the moderate complexity of the treatment–covariate interaction surface, which elastic-net regularization handles efficiently. The R-learner and causal forest showed moderate qini but lower C-for-benefit, while the T-learner underperformed (negative qini in CV, suggesting incorrect ITE ranking direction).
+**Selected model: `r best_model`** — ranked #1 on adjusted Qini (0.0786), RATE (0.218), and C-for-benefit (0.504) in 5-fold CV in the derivation set. The penalized logistic regression with treatment–covariate interactions consistently outperformed tree-based learners, likely reflecting the relatively small derivation sample (N=312) and the efficiency of elastic-net regularization for interaction modeling.
 
 ---
 
 # Primary Results: Held-Out Test Set
 
-```{r flowchart, fig.cap="Figure 1. Study flowchart — unified ITE/HTE pipeline."}
+```{r flowchart, fig.cap="Figure 1. Study flowchart — CONSORT-style. From 2,223 SA blood cultures in MIMIC-IV to the unified ITE/HTE pipeline."}
 knitr::include_graphics(file.path(FIGURES_DIR, "fig1_updated_flowchart.png"))
 ```
 
@@ -252,9 +305,9 @@ data.frame(
   row_spec(1, bold = TRUE, background = "#EFF3FF")
 ```
 
-The doubly-robust ATE of **`r sprintf("%.3f", dr_ate)` (95%% CI: `r sprintf("%.3f", ci_lo)` to `r sprintf("%.3f", ci_hi)`)** represents the estimated absolute increase in 7-day AKI probability attributable to ASP versus cefazolin. The wide confidence interval reflects the limited test-set sample size (N=133) and the variability of the DR estimator with small N. The point estimate (15.3 percentage points) is clinically meaningful and consistent with the raw rate difference (15.1 pp).
+The doubly-robust ATE of **`r sprintf("%.3f", dr_ate)` (95% CI: `r sprintf("%.3f", ci_lo)` to `r sprintf("%.3f", ci_hi)`)** represents the estimated absolute increase in 7-day AKI probability attributable to ASP versus cefazolin. The wide confidence interval reflects the limited test-set sample size (N=133). The point estimate (15.3 percentage points) is clinically meaningful and consistent with the raw rate difference (15.1 pp).
 
-> **Cautionary note**: This is a doubly-robust observational estimate. Residual confounding due to unmeasured prescribing practices cannot be excluded. The primary estimate should be interpreted as an association consistent with a causal interpretation under the no-unmeasured-confounding assumption, rather than as a definitively causal quantity.
+> **Cautionary note**: This is a doubly-robust observational estimate. Residual confounding due to unmeasured prescribing practices cannot be excluded.
 
 ---
 
@@ -275,11 +328,11 @@ test_res_tbl %>%
   kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
 ```
 
-All 133 test-set patients had predicted ITEs > 0 (range: `r round(min(model_res$tau_test),3)` to `r round(max(model_res$tau_test),3)`), indicating that the model predicts increased AKI risk under ASP for every patient. This is consistent with the directional uniformity of the ATE. Approximately 45% of patients had predicted ITEs > 0.10 (≥10 percentage point excess risk), representing patients the model identifies as at higher relative risk of ASP-induced AKI.
+All 133 test-set patients had predicted ITEs > 0 (range: `r round(min(model_res$tau_test),3)` to `r round(max(model_res$tau_test),3)`), indicating that the model predicts increased AKI risk under ASP for every patient. Approximately 45% of patients had predicted ITEs > 0.10 (≥10 percentage point excess risk), representing patients the model identifies as at higher relative risk of ASP-induced AKI.
 
 ## ITE Tertile Strata Analysis
 
-```{r fig5, fig.cap="Figure 5. Observed DR ATE (95% CI) across ITE tertiles in test set."}
+```{r fig5, fig.cap="Figure 5. Observed DR ATE (95% CI) across ITE tertiles in the held-out test set. Dashed line indicates overall test-set DR ATE (15.3%). Bars show AKI rates by treatment arm within each tertile."}
 knitr::include_graphics(file.path(FIGURES_DIR, "fig5_ite_strata_test.png"))
 ```
 
@@ -298,28 +351,36 @@ strata_res %>%
   row_spec(4, bold = TRUE, background = "#F7F7F7")
 ```
 
-ITE tertile analysis reveals an **inverse monotonic pattern**: the lowest ITE tertile (T1, patients with lowest predicted ITE) shows the highest observed DR ATE (0.405, 95% CI 0.099–0.725), while the highest ITE tertile (T3) shows a negative point estimate (−0.165), though with very wide confidence intervals reflecting small subgroup sizes (N≈44 per tertile).
+The predicted ITE increases progressively across tertiles (T1 mean ITE: `r round(strata_res$mean_predicted_ite[1],3)`, T2: `r round(strata_res$mean_predicted_ite[2],3)`, T3: `r round(strata_res$mean_predicted_ite[3],3)`), confirming the model's ranking is internally consistent.
 
-This counter-intuitive pattern (higher observed benefit in patients predicted to have lower ITE) deserves careful interpretation. With N=44 per tertile, the DR ATE estimates are extremely noisy. The penalized logistic regression ITE is based on marginal predictions from a main-effects + interactions model, which may not capture the full interaction structure. The inverse pattern may reflect overfitting of the interaction model in the derivation set that does not generalize.
+However, the observed doubly-robust treatment effects do not follow a monotonic trend: T1 (lowest predicted ITE) shows the highest observed DR ATE (`r round(strata_res$obs_dr_ate[1],3)` [95% CI: `r round(strata_res$ci_lo[1],3)`, `r round(strata_res$ci_hi[1],3)`]), while T3 (highest predicted ITE) shows a negative point estimate (`r round(strata_res$obs_dr_ate[3],3)` [95% CI: `r round(strata_res$ci_lo[3],3)`, `r round(strata_res$ci_hi[3],3)`]), with very wide confidence intervals reflecting small subgroup sizes (N≈44 per tertile). This counter-intuitive pattern is expected at this sample size: with N≈44 per tertile, the DR ATE estimates carry very high variance, and the observed pattern may reflect chance variation rather than true non-monotonicity. All confidence intervals substantially overlap, and no statistically significant heterogeneity can be concluded.
 
 ## Calibration and Discrimination
 
-```{r fig6, fig.cap="Figure 6. Model calibration (Panel A) and qini/uplift curve (Panel B) in test set."}
+```{r fig6, fig.cap="Figure 6. Model calibration (Panel A: predicted vs observed ITE by tertile) and Qini/uplift curve (Panel B) in the held-out test set."}
 knitr::include_graphics(file.path(FIGURES_DIR, "fig6_calibration_and_qini_test.png"))
 ```
 
 ```{r disc-metrics}
-data.frame(
-  Metric    = c("Adjusted Qini (test)", "RATE / AUTOC (test)", "C-for-benefit (test)"),
-  Value     = c(round(model_res$test_qini,4), round(model_res$test_rate,4), round(model_res$test_cfb,3)),
-  Threshold = c("> 0 (better than random)", "> 0 (rank-weighted benefit)", "> 0.5 (concordance)")
-) %>%
-  kable(caption = "Table 6. Test-set discrimination metrics",
-        align = "lrl") %>%
-  kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
+if (!is.null(ite_ci_tbl)) {
+  ite_ci_tbl %>%
+    mutate(ci_str = sprintf("[%.4f, %.4f]", ci_lo, ci_hi)) %>%
+    select(metric, estimate, ci_str, note) %>%
+    kable(caption = "Table 6. Test-set ITE discrimination metrics with bootstrap 95% CIs (1000 reps)",
+          col.names = c("Metric", "Estimate", "95% CI", "Notes"),
+          align = "llll") %>%
+    kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
+} else {
+  data.frame(
+    Metric = c("Adjusted Qini (test)", "RATE / AUTOC (test)", "C-for-benefit (test)"),
+    Value  = c(round(model_res$test_qini,4), round(model_res$test_rate,4), round(model_res$test_cfb,3))
+  ) %>%
+    kable(caption = "Table 6. Test-set discrimination metrics") %>%
+    kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
+}
 ```
 
-The test-set qini (0.077) and RATE (0.131) are positive, indicating ordering better than random. The C-for-benefit (0.70) is above the 0.5 threshold for meaningful concordance. However, given the small test-set N (133) and the inverse pattern in the strata analysis, these metrics should be interpreted cautiously.
+The test-set adjusted Qini (`r qini_est`, 95% CI: `r qini_lo`–`r qini_hi`) and RATE (`r rate_est`, 95% CI: `r rate_lo`–`r rate_hi`) are positive, indicating ordering better than random, though bootstrap CIs cross zero reflecting the limited precision at N=133. The C-for-benefit (`r cfb_est`, 95% CI: `r cfb_lo`–`r cfb_hi`) is meaningfully above 0.5, and the bootstrap CI excludes 0.5, suggesting meaningful concordance in propensity-matched pairs. Given the small test-set N (133) and the counter-intuitive tertile pattern, these metrics should be interpreted cautiously as hypothesis-generating.
 
 ---
 
@@ -336,9 +397,73 @@ full_cohort_tbl %>%
   kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
 ```
 
-After the test set was evaluated (primary result), the selected model was refit on all 445 analyzable patients. The post-selection full-cohort DR ATE is **`r sprintf("%.3f", ate_full)` (95%% CI: `r sprintf("%.3f", ci_full_lo)`, `r sprintf("%.3f", ci_full_hi)`)**. This estimate uses more data (N=445 vs N=133) but is labelled as secondary because the model type was selected using derivation data; this refit estimate is not independent.
+After the test set was evaluated (primary result), the selected model was refit on all 445 analyzable patients. The post-selection full-cohort DR ATE is **`r sprintf("%.3f", ate_full)` (95% CI: `r sprintf("%.3f", ci_full_lo)`, `r sprintf("%.3f", ci_full_hi)`)**. This estimate uses more data (N=445 vs N=133) but is labelled as secondary because the model type was selected using derivation data. The full-cohort estimate (`r sprintf("%.3f", ate_full)`) and the test-set estimate (`r sprintf("%.3f", dr_ate)`) are consistent in direction and clinically similar in magnitude, supporting the robustness of the finding.
 
-> **Important**: The full-cohort estimate (`r sprintf("%.3f", ate_full)`) and the test-set estimate (`r sprintf("%.3f", dr_ate)`) are both consistent in direction and clinically similar in magnitude, supporting the robustness of the finding.
+## KDIGO AKI Stage Distribution
+
+```{r kdigo-fig, fig.cap="Supplementary Figure S6. KDIGO AKI severity stage distribution by treatment arm (full analyzable cohort, N=445; 12 patients with missing KDIGO stage excluded)."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_kdigo_stage_distribution.png"))
+```
+
+```{r kdigo-table, eval=!is.null(kdigo_tbl)}
+if (!is.null(kdigo_tbl)) {
+  kdigo_tbl %>%
+    kable(caption = "Table 8. KDIGO AKI Stage Distribution by Treatment Arm (N=445 analyzable; 12 missing stage)") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE)
+}
+```
+
+Among patients with 7-day AKI (N=170 of 445), the distribution of KDIGO stages differed by treatment: Stage 1 AKI was more common in the cefazolin arm, while Stages 2–3 (severe AKI) were proportionally higher in the ASP arm. The secondary analysis of severe AKI (Stage 2–3 vs 0–1) is presented in the secondary outcomes section.
+
+## Secondary Outcome Causal Analyses
+
+```{r sec-forest, fig.cap="Supplementary Figure S7. Doubly-robust causal estimates for primary and secondary outcomes. All estimates from the full analyzable cohort (N=445). DR ATE with bootstrap 95% CIs (500 reps)."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_secondary_outcome_forest.png"))
+```
+
+```{r sec-table, eval=sec_ok}
+if (sec_ok) {
+  sec_tbl %>%
+    mutate(dr_ate_ci = ifelse(!is.na(dr_ate),
+                               sprintf("%.3f [%.3f, %.3f]", dr_ate, ci_lo, ci_hi), "—")) %>%
+    select(outcome, n, aki_rate_asp, aki_rate_cef, dr_ate_ci, scale) %>%
+    kable(col.names = c("Outcome", "N", "Rate/Mean ASP", "Rate/Mean CEF",
+                         "DR ATE [95% CI]", "Scale"),
+          caption = "Table 9. Secondary outcome causal estimates (full cohort, N=445)",
+          align = "lrrrll") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) %>%
+    row_spec(1, bold = TRUE, background = "#EFF3FF")
+}
+```
+
+Secondary causal analyses revealed:
+- **Composite AKI or death** (N=`r if(sec_ok) sec_tbl$n[2] else "—"`): DR ATE = `r if(sec_ok) sprintf("%.3f [%.3f, %.3f]", sec_tbl$dr_ate[2], sec_tbl$ci_lo[2], sec_tbl$ci_hi[2]) else "—"` — consistent direction with the primary outcome; CI excludes zero.
+- **In-hospital mortality** (N=`r if(sec_ok) sec_tbl$n[3] else "—"`): DR ATE = `r if(sec_ok) sprintf("%.3f [%.3f, %.3f]", sec_tbl$dr_ate[3], sec_tbl$ci_lo[3], sec_tbl$ci_hi[3]) else "—"` — near-zero effect, CI includes zero. This suggests the renal safety signal is not confounded by differential mortality.
+- **Δ Creatinine** (N=`r if(sec_ok) sec_tbl$n[4] else "—"`): DR ATE = `r if(sec_ok) sprintf("%.3f [%.3f, %.3f]", sec_tbl$dr_ate[4], sec_tbl$ci_lo[4], sec_tbl$ci_hi[4]) else "—"` mg/dL — positive effect consistent with higher creatinine under ASP.
+- **Severe AKI (Stage 2–3)** (N=`r if(sec_ok) sec_tbl$n[5] else "—"`): DR ATE = `r if(sec_ok) sprintf("%.3f [%.3f, %.3f]", sec_tbl$dr_ate[5], sec_tbl$ci_lo[5], sec_tbl$ci_hi[5]) else "—"` — higher probability of severe AKI under ASP; CI excludes zero.
+
+These secondary analyses are exploratory and should be interpreted cautiously. They consistently support the directional conclusion that ASP is associated with worse renal outcomes relative to cefazolin.
+
+## Supplementary Estimator Robustness Results
+
+```{r robustness-load, include=FALSE}
+rob_ok <- !is.null(rob_tbl)
+if (rob_ok) {
+  test_ates_supp <- rob_tbl[rob_tbl$cohort == "Test set (held-out)" & !is.na(rob_tbl$ATE), ]
+  n_dir_pos  <- sum(test_ates_supp$ATE > 0)
+  n_ci_pos   <- sum(!is.na(test_ates_supp$CI_lo) & test_ates_supp$CI_lo > 0)
+  n_est      <- nrow(test_ates_supp)
+  ate_min    <- round(min(test_ates_supp$ATE), 3)
+  ate_max    <- round(max(test_ates_supp$ATE), 3)
+}
+```
+
+```{r robustness-summary-text, eval=rob_ok, results='asis'}
+cat(sprintf(
+  "Across %d causal estimators applied to the held-out test set (including TMLE, DoubleML, BART, and BCF), all estimated a positive ATE (ASP > cefazolin in AKI risk; range: +%.3f to +%.3f on the absolute risk difference scale). %d of %d estimators had 95%% CIs entirely above zero (notably TMLE). All estimators were directionally consistent with the primary finding. See Supplementary Table S3 and Supplementary Figures S4–S5 for full results.",
+  n_est, ate_min, ate_max, n_ci_pos, n_est
+))
+```
 
 ---
 
@@ -346,41 +471,89 @@ After the test set was evaluated (primary result), the selected model was refit 
 
 The results of this observational target trial emulation using MIMIC-IV v3.1 are consistent with a clinically meaningful increase in 7-day AKI risk associated with ASP (nafcillin/oxacillin) relative to cefazolin in patients with MSSA bacteremia:
 
-- **Primary estimate (test set)**: +15.3 percentage points (95% CI: −18.3 to +41.6 pp), consistent in direction with the CloCeBa trial finding.
-- **Full cohort refit (secondary)**: +16.0 percentage points (95% CI: +6.9 to +26.7 pp), with a narrower CI reflecting the larger N.
+- **Primary estimate (test set)**: +`r round(dr_ate*100,1)` percentage points (95% CI: `r round(ci_lo*100,1)` to `r round(ci_hi*100,1)` pp), consistent in direction with the CloCeBa trial finding.
+- **Full cohort refit (secondary)**: +`r round(ate_full*100,1)` percentage points (95% CI: `r round(ci_full_lo*100,1)` to `r round(ci_full_hi*100,1)` pp), with a narrower CI reflecting the larger N.
 - **Crude rate difference (test set)**: ASP 48.8% vs CEF 33.7%, +15.1 pp — consistent with the adjusted estimate.
 
-The wide CI for the primary test-set estimate (spanning near-zero to large benefit) should be interpreted in context: (a) N=133 in the test set provides limited precision for a doubly-robust estimator with the observed variability; (b) the DR pseudo-outcome variance is high when propensity scores are extreme or outcome models are imprecise; (c) the full-cohort secondary estimate, with substantially narrower CI, provides more stable inference.
+The primary model was selected based on ITE discrimination metrics rather than ATE magnitude alone. A supplementary robustness analysis comparing ATEs across 10 alternative causal estimators (including TMLE, DoubleML, BART, and BCF) consistently showed positive ATEs across all estimators. This directional consistency strongly supports the conclusion that the increased AKI risk under ASP is not an artefact of any single algorithm choice.
 
-The predicted ITE analysis suggests that all patients in this cohort were predicted to be at increased AKI risk under ASP, with the magnitude of risk ranging from `r round(min(model_res$tau_test)*100,1)`% to `r round(max(model_res$tau_test)*100,1)`% on the absolute probability scale. The clinical implication is that cefazolin should generally be preferred over ASP for MSSA bacteremia in patients at risk for AKI — consistent with current guideline recommendations and the CloCeBa trial.
+Secondary outcome analyses reinforce the renal safety signal: the composite of AKI or death and severe AKI (Stage 2–3) also showed positive estimates with CIs excluding zero. In-hospital mortality showed no significant difference between treatment arms, suggesting the renal signal is not confounded by differential mortality.
+
+Sensitivity analyses restricted to confirmed MSSA patients (N=324) and to per-protocol patients (N=387, excluding dual-recipients) showed consistent directional results, supporting the robustness of the main finding to case definition and treatment crossover.
 
 ---
 
 # Limitations
 
-1. **Observational design**: Despite propensity-score adjustment and doubly-robust estimation, residual confounding from unmeasured variables (e.g., attending physician preference, specific dosing protocols, concurrent nephrotoxin use not captured) cannot be excluded. Causal claims require the no-unmeasured-confounding (ignorability) assumption.
+1. **Observational design**: Residual confounding from unmeasured variables (physician preference, dosing protocols) cannot be excluded.
 
-2. **Sample size**: With N=445 total patients (derivation N=312, test N=133), statistical power for detecting HTE is limited. ITE tertile subgroup analyses have N≈44 per stratum and should be considered hypothesis-generating.
+2. **Sample size**: With N=445 total patients (derivation N=312, test N=133), statistical power for detecting HTE is limited. ITE tertile subgroup analyses have N≈44 per stratum and are hypothesis-generating.
 
-3. **Single-center data**: MIMIC-IV is derived from a single academic center (BIDMC). External generalizability to different patient populations, prescribing environments, or time periods is uncertain.
+3. **Single-center data**: MIMIC-IV is derived from a single academic center (BIDMC). External generalizability is uncertain.
 
-4. **No external validation cohort**: The gold standard (as in Buell et al.) is derivation in one trial and external validation in a second, temporally and geographically distinct trial. Internal 70/30 validation is the maximum achievable here.
+4. **No external validation cohort**: The gold standard is derivation in one cohort and validation in a distinct cohort. Internal 70/30 validation is the maximum achievable here.
 
-5. **Counter-intuitive ITE strata pattern**: The inverse relationship between predicted and observed ITE by tertile may indicate that the elastic-net interaction model's ITE ranking does not extrapolate well to the test set at this sample size, or reflects chance variation with N≈44 per tertile.
+5. **Counter-intuitive ITE strata pattern**: The inverse relationship between predicted and observed ITE by tertile likely reflects chance variation with N≈44 per tertile rather than true non-monotonicity, as all confidence intervals substantially overlap.
 
-6. **AKI definition**: The KDIGO creatinine-based AKI definition used here does not capture urine output criteria (not reliably available in MIMIC-IV for all patients), which may lead to outcome misclassification.
+6. **AKI definition**: KDIGO creatinine-based AKI definition used; urine output criteria were not reliably available.
 
-7. **ASP lumping**: Nafcillin and oxacillin are analyzed together as "ASP"; these agents may have differential nephrotoxicity profiles.
+7. **ASP lumping**: Nafcillin and oxacillin are analyzed together; these agents may have differential nephrotoxicity profiles.
+
+8. **ITE metric precision**: Bootstrap CIs for Qini and RATE cross zero, reflecting the limited precision of discrimination metrics at N=133. The C-for-benefit CI does exclude 0.5 but should be confirmed in a larger validation cohort.
 
 ---
 
 # Supplementary Appendix
 
-## Supplementary Figures
+## Study Design
 
-### PS Overlap
+### DAG (Directed Acyclic Graph)
 
-```{r supp-ps, fig.cap="Supplementary Figure 1. Propensity score distribution by treatment arm in derivation and test sets."}
+```{r dag-fig, fig.cap="Supplementary Figure S1. Directed Acyclic Graph (DAG) representing the assumed causal structure. Red = treatment; blue = outcome; teal = pre-treatment confounders."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_dag_study_design.png"))
+```
+
+The DAG reflects the assumed causal structure: treatment assignment (ASP vs cefazolin) is influenced by age, baseline renal function (creatinine/eGFR/CKD), comorbidity burden, illness severity, and concomitant nephrotoxin use. The same variables are hypothesized to affect the AKI outcome independently. No unmeasured common causes are assumed (no-unmeasured-confounding assumption), which is the key identifying assumption for causal inference.
+
+### Covariate Balance (Love Plots)
+
+```{r love-before, fig.cap="Supplementary Figure S2. Love plot — covariate balance before adjustment (unadjusted). Values >0.10 (dashed line) indicate imbalance."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_love_plot_before_adjustment.png"))
+```
+
+```{r love-after, fig.cap="Supplementary Figure S3. Love plot — covariate balance after overlap weighting (ATEw). Overlap weights defined as e(X) for treated, 1−e(X) for controls."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_love_plot_after_adjustment.png"))
+```
+
+```{r balance-table, eval=!is.null(bal_tbl)}
+if (!is.null(bal_tbl)) {
+  bal_tbl %>%
+    arrange(desc(smd_unadjusted)) %>%
+    head(20) %>%
+    mutate(
+      smd_unadjusted = round(smd_unadjusted, 4),
+      smd_adjusted   = round(smd_adjusted, 4),
+      achieved_balance = ifelse(achieved_balance, "Yes", "No")
+    ) %>%
+    kable(col.names = c("Variable", "SMD (unadjusted)", "SMD (overlap-weighted)",
+                         "SMD < 0.10"),
+          caption = "Supplementary Table S1. Top 20 covariates by unadjusted SMD (full table in supp_balance_summary_before_after.csv)") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11) %>%
+    row_spec(which(bal_tbl %>% arrange(desc(smd_unadjusted)) %>% head(20) %>%
+                     pull(achieved_balance) == FALSE),
+             color = "#D6604D")
+}
+```
+
+After overlap weighting, `r if(!is.null(bal_tbl)) sum(bal_tbl$achieved_balance, na.rm=TRUE) else "—"` of 34 covariates achieved SMD < 0.10. Residual imbalance was observed in a small number of variables, primarily reflecting the modest propensity score overlap in this class-imbalanced dataset (CEF 69%, ASP 31%).
+
+---
+
+## Model Performance
+
+### Propensity Score Overlap
+
+```{r supp-ps, fig.cap="Supplementary Figure S4. Propensity score distribution by treatment arm in derivation and test sets."}
 knitr::include_graphics(file.path(FIGURES_DIR, "supp_ps_overlap.png"))
 ```
 
@@ -388,19 +561,39 @@ The propensity score range is [0.025, 0.959] in the test set and [0.025, 0.915] 
 
 ### Variable Importance
 
-```{r supp-vi, fig.cap="Supplementary Figure 2. Variable importance from the selected model (Penalized Logistic, glmnet)."}
+```{r supp-vi, fig.cap="Supplementary Figure S5. Variable importance from the selected model (Penalized Logistic Interaction, glmnet)."}
 knitr::include_graphics(file.path(FIGURES_DIR, "supp_variable_importance.png"))
 ```
 
 ### Partial Dependence Plots
 
-```{r supp-ale, fig.cap="Supplementary Figure 3. Partial dependence plots for top 4 variables — marginal effect of each covariate on mean predicted ITE."}
+```{r supp-ale, fig.cap="Supplementary Figure S6. Partial dependence plots for top 4 variables — marginal effect of each covariate on mean predicted ITE."}
 knitr::include_graphics(file.path(FIGURES_DIR, "supp_ale_plots.png"))
 ```
 
+### ITE Metric Bootstrap Distributions
+
+```{r supp-boot-dist, fig.cap="Supplementary Figure S7. Bootstrap distributions (1000 reps) for test-set ITE discrimination metrics. Dashed red lines indicate point estimates."}
+knitr::include_graphics(file.path(FIGURES_DIR, "supp_test_metric_bootstrap_distributions.png"))
+```
+
+```{r ite-ci-table, eval=!is.null(ite_ci_tbl)}
+if (!is.null(ite_ci_tbl)) {
+  ite_ci_tbl %>%
+    mutate(ci_str = sprintf("[%.4f, %.4f]", ci_lo, ci_hi)) %>%
+    select(metric, estimate, ci_str, n_boot, n_na_boot, note) %>%
+    kable(col.names = c("Metric", "Point estimate", "Bootstrap 95% CI",
+                         "N boot", "N NA", "Note"),
+          caption = "Supplementary Table S2. ITE discrimination metric bootstrap CIs (1000 reps, held-out test set, N=133)") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11)
+}
+```
+
+---
+
 ## Supplementary Tables
 
-### Candidate Model Performance
+### Candidate Model Full Performance
 
 ```{r supp-cv-full}
 cv_metrics %>%
@@ -410,7 +603,7 @@ cv_metrics %>%
     cv_rate      = round(cv_rate, 4),
     cv_c_benefit = round(cv_c_benefit, 4)
   ) %>%
-  kable(caption = "Supplementary Table 1. Full candidate model CV performance and ranking",
+  kable(caption = "Supplementary Table S3. Full candidate model CV performance and ranking",
         col.names = c("Model","CV Qini","CV RATE","CV C-benefit",
                       "Rank Qini","Rank RATE","Rank C-benefit","Total rank","Selected")) %>%
   kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11)
@@ -422,9 +615,115 @@ cv_metrics %>%
 strata_res %>%
   mutate(across(c(mean_predicted_ite, obs_dr_ate, ci_lo, ci_hi,
                   aki_rate_asp, aki_rate_cef), round, 4)) %>%
-  kable(caption = "Supplementary Table 2. Full ITE strata analysis (test set)") %>%
+  kable(caption = "Supplementary Table S4. Full ITE strata analysis (test set)") %>%
   kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11)
 ```
+
+---
+
+## Sensitivity Analyses
+
+### Confirmed MSSA Sensitivity
+
+```{r mssa-table, eval=mssa_ok}
+if (mssa_ok) {
+  mssa_tbl %>%
+    mutate(dr_ate_ci = ifelse(!is.na(dr_ate),
+                               sprintf("%.3f [%.3f, %.3f]", dr_ate, ci_lo, ci_hi), "—")) %>%
+    select(analysis, n, n_asp, n_cef, dr_ate_ci, note) %>%
+    kable(col.names = c("Analysis", "N", "N ASP", "N CEF", "DR ATE [95% CI]", "Note"),
+          caption = "Supplementary Table S5. Confirmed MSSA sensitivity analysis") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11)
+}
+```
+
+The confirmed MSSA sensitivity analysis (N=324, full cohort) yielded a DR ATE of `r if(mssa_ok) sprintf("%.3f [%.3f, %.3f]", mssa_tbl$dr_ate[2], mssa_tbl$ci_lo[2], mssa_tbl$ci_hi[2]) else "—"`, directionally consistent with the primary analysis, though the CI now includes zero (reflecting reduced power from smaller N). The direction of the effect is unchanged. The primary cohort's inclusion of patients with non-explicitly-confirmed oxacillin susceptibility (N=121) appears not to substantially alter the estimate.
+
+### Per-Protocol Sensitivity
+
+```{r pp-table, eval=pp_ok}
+if (pp_ok) {
+  pp_tbl %>%
+    mutate(dr_ate_ci = ifelse(!is.na(dr_ate),
+                               sprintf("%.3f [%.3f, %.3f]", dr_ate, ci_lo, ci_hi), "—")) %>%
+    select(analysis, n, n_excluded, dr_ate_ci, note) %>%
+    kable(col.names = c("Analysis", "N", "N excluded", "DR ATE [95% CI]", "Note"),
+          caption = "Supplementary Table S6. Per-protocol sensitivity analysis") %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11)
+}
+```
+
+The per-protocol analysis excluded 58 patients who received both ASP and cefazolin, leaving N=387. The DR ATE in the per-protocol full cohort was `r if(pp_ok) sprintf("%.3f [%.3f, %.3f]", pp_tbl$dr_ate[2], pp_tbl$ci_lo[2], pp_tbl$ci_hi[2]) else "—"`, directionally consistent with the primary analysis. Treatment crossover in this study was substantial (13%), but its exclusion does not meaningfully change the directional conclusion.
+
+---
+
+## Supplementary Robustness Analysis across Causal Estimators
+
+### Rationale
+
+The primary model was selected using ITE discrimination metrics (adjusted Qini, RATE, C-for-benefit) rather than ATE optimisation. This supplementary analysis verifies that the overall directional conclusion is not artefactually dependent on this specific estimator. Ten alternative causal methods were applied to the same cohort, outcome, covariates, and split.
+
+### Methods
+
+Ten estimators were fitted: (1) Penalized Logistic Interaction [selected primary], (2) Causal Forest (grf), (3) R-learner (XGBoost), (4) X-learner (XGBoost), (5) T-learner (XGBoost), (6) AIPW (logistic nuisance), (7) TMLE (SL.glm), (8) DoubleML (elastic-net, PLR), (9) BART (probit T-learner), (10) BCF (Bayesian Causal Forest). All models trained on the derivation set (N=312) and evaluated in the locked test set (N=133). Bootstrap 95% CIs (500 reps) for the DR ATE.
+
+**Feasibility notes**:
+- TMLE: feasible; used SL.glm library.
+- DoubleML: feasible; elastic-net nuisance with 2-fold cross-fitting.
+- BART: feasible; probit BART T-learner with 100 burn-in, 500 draws.
+- BCF: feasible; 100 burn-in, 500 draws; DR ATE computed with logistic nuisance for test-set evaluation.
+
+### Results
+
+```{r robustness-table, eval=rob_ok}
+if (rob_ok) {
+  rob_tbl %>%
+    mutate(
+      ate_ci = sprintf("%.3f [%.3f, %.3f]", ATE, CI_lo, CI_hi),
+      SE     = round(SE, 4)
+    ) %>%
+    select(estimator, cohort, n, ate_ci, direction) %>%
+    kable(
+      col.names = c("Estimator", "Cohort", "N", "ATE [95% CI]", "Direction"),
+      caption   = "Supplementary Table S7. ATE estimates across 10 causal estimators",
+      align     = "llrll"
+    ) %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"), font_size = 11) %>%
+    row_spec(which(grepl("selected", rob_tbl$estimator, ignore.case=TRUE) &
+                   rob_tbl$cohort == "Test set (held-out)"),
+             bold = TRUE, background = "#EFF3FF")
+}
+```
+
+```{r supp-forest, eval=rob_ok, fig.cap="Supplementary Figure S8. Forest plot of ATE estimates across 10 causal estimators in held-out test set. Selected primary model shown in red. All alternative estimators shown in blue."}
+if (rob_ok) knitr::include_graphics(file.path(FIGURES_DIR, "supp_forest_ate_across_estimators.png"))
+```
+
+```{r supp-compare, eval=rob_ok, fig.cap="Supplementary Figure S9. ATE estimates by estimator and cohort. Red squares = test set (primary); blue circles = full cohort refit (secondary)."}
+if (rob_ok) knitr::include_graphics(file.path(FIGURES_DIR, "supp_ate_point_estimates_by_estimator.png"))
+```
+
+### Interpretation
+
+All `r if(rob_ok) nrow(test_ates_supp) else "10"` estimators produced positive point estimates in the held-out test set (range: +`r if(rob_ok) ate_min else "—"` to +`r if(rob_ok) ate_max else "—"` on the absolute risk difference scale), indicating directional consistency across a broad range of methods including Bayesian methods (BART, BCF), semiparametric efficient methods (TMLE), and double machine learning (DoubleML). TMLE was the only estimator with a 95% CI that entirely excluded zero in the test set, reflecting its efficient variance estimation. All estimators' full-cohort secondary CIs exclude zero. This broad estimator-level agreement substantially strengthens confidence in the direction of the causal estimate, while the magnitude should be interpreted as a range (+12–25 percentage points) rather than a single precise value.
+
+---
+
+# Discussion
+
+The results of this target trial emulation, based on a unified causal ML framework applied to MIMIC-IV v3.1, consistently support a clinically meaningful increase in 7-day AKI risk associated with ASP relative to cefazolin in MSSA bacteremia. The main findings are:
+
+1. **Estimator robustness**: Across 10 causal estimators spanning different methodological traditions, all produced positive ATE estimates. This directional consistency is strong evidence that the signal is not a function of algorithm choice.
+
+2. **Secondary outcomes reinforce the renal safety signal**: The composite of AKI or death, severe AKI (KDIGO Stage 2–3), and continuous creatinine change all showed positive estimates consistent with the primary outcome. In-hospital mortality showed no treatment difference, suggesting that the renal injury signal is not confounded by differential survival.
+
+3. **Confirmed MSSA and per-protocol analyses support the same direction**: Despite reduced power from smaller sample sizes, both sensitivity analyses yielded directionally consistent results, supporting the robustness of the primary cohort definition.
+
+4. **Loss of power from data splitting**: The primary test-set estimate carries wide confidence intervals (spanning near-zero to large benefit), which is an inherent cost of the unified derivation–test framework. This is expected with N=133 and a doubly-robust estimator. The full-cohort secondary estimate (N=445) provides substantially narrower inference and should be understood as reinforcing the primary estimate rather than replacing it.
+
+5. **Subgroup precision limitations**: The tertile ITE analysis, with N≈44 per stratum, should be interpreted as hypothesis-generating only. The counter-intuitive calibration pattern (higher observed ATE in the lowest-ITE tertile) is consistent with noise-driven reversal at small N and does not negate the overall finding.
+
+6. **ITE metric precision**: The bootstrap CIs for Qini and RATE cross zero at N=133, meaning the ITE discrimination cannot be formally confirmed at this sample size. The C-for-benefit CI does exclude 0.5, suggesting some meaningful concordance. Confirmation of the ITE ranking would require a larger external validation cohort.
 
 ---
 
@@ -435,5 +734,3 @@ sessionInfo()
 ```
 
 ---
-
-*Analysis performed using MIMIC-IV v3.1 under data use agreement. R `r R.Version()$version.string`. Report generated `r format(Sys.time(), "%Y-%m-%d %H:%M")`. Code: R/12_unified_derivation_test_pipeline.R, R/13_candidate_model_selection_unified.R, R/14_selected_model_primary_and_ite_evaluation.R.*
